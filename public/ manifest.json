@@ -1,0 +1,17 @@
+{
+  "name": "Equipo Malo",
+  "short_name": "Equipo Malo",
+  "description": "La app del Equipo Malo",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8f5ff",
+  "theme_color": "#7c3aed",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/logo512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
