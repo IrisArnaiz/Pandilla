@@ -457,17 +457,184 @@ function ParcheesiGame({ onBack, notify }) {
   );
 }
 
+// ─── WORDLE ───────────────────────────────────────────────────────────────────
+const WORDLE_WORDS = [
+  "PLAYA","AMIGA","FIESTA","TARDE","NOCHE","ENERO","MARZO","JUEGO","LIBRO","BRISA",
+  "CAMPO","DANCE","DULCE","FERIA","GANAS","HIELO","JARDN","LIMON","LLUVIA","MANGO",
+  "MEDIA","MUNDO","NADIE","NEGRO","NIVEL","NORTE","NOVIA","NUEVE","OCEAN","OLIVE",
+  "ORDEN","OSCAR","OVEJA","PABLO","PADRE","PARED","PARIS","PASTA","PIANO","PINTA",
+  "PISTA","PIZZA","PLATO","PLAZA","POETA","PONTE","PRIOR","PRIMO","QUESO","RADIO",
+  "REINA","REINO","RELOJ","RESTA","RIVAL","RIZAR","ROBLE","ROMPE","ROSCA","RUBIA",
+  "SABOR","SALSA","SALUD","SALVO","SAMBA","SAUCE","SEÑAL","SEXTO","SIETE","SIGLO",
+  "SOBRE","SOLAR","SUELO","SUENA","SUELA","TABLA","TANGO","TARDE","TARTA","TECHO",
+  "TEMA","TIGRE","TIMBA","TINTO","TIRAR","TIRSO","TOMAR","TORNO","TORRE","TOTAL",
+  "TRAJE","TRAMA","TRIGO","TRUCO","TUNEL","ÚNICO","VALLE","VAPOR","VASCO","VECIN",
+  "VELAR","VERDE","VERSO","VIAJE","VIDAS","VIENTO","VIGOR","VIRAL","VISTA","VITAL",
+  "VOCAL","VOLCO","VUELO","YATES","ZUMOS","ZUECO","BAILE","BARCO","BARRO","BELLO",
+  "BESAR","CACAO","CAJON","CALOR","CANTO","CARNE","CARTA","CASCO","CIELO","CINCO",
+  "CIRCO","CLARO","CLASE","CLAVE","CLIMA","COBRE","COCER","COCHE","COCOA","COLOR",
+];
+
+const KEYBOARD_ROWS = [
+  ["Q","W","E","R","T","Y","U","I","O","P"],
+  ["A","S","D","F","G","H","J","K","L","Ñ"],
+  ["ENTER","Z","X","C","V","B","N","M","⌫"],
+];
+
+function WordleGame({ onBack, notify }) {
+  const wordLength = 5;
+  const maxGuesses = 6;
+
+  const [target] = useState(() => {
+    const words5 = WORDLE_WORDS.filter(w => w.length === 5);
+    return words5[Math.floor(Math.random() * words5.length)];
+  });
+  const [guesses, setGuesses] = useState([]); // array of strings
+  const [current, setCurrent] = useState("");
+  const [gameOver, setGameOver] = useState(false);
+  const [won, setWon] = useState(false);
+  const [shake, setShake] = useState(false);
+  const [revealed, setRevealed] = useState([]); // which rows are revealed
+
+  // letter state map: correct / present / absent
+  const letterStates = {};
+  guesses.forEach((g, gi) => {
+    g.split("").forEach((ch, ci) => {
+      const state = getLetterState(g, target, ci);
+      const prev = letterStates[ch];
+      if (prev === "correct") return;
+      if (prev === "present" && state !== "correct") return;
+      letterStates[ch] = state;
+    });
+  });
+
+  function getLetterState(guess, target, idx) {
+    if (guess[idx] === target[idx]) return "correct";
+    if (target.includes(guess[idx])) return "present";
+    return "absent";
+  }
+
+  function getTileColor(state, revealed) {
+    if (!revealed) return C.card;
+    if (state === "correct") return C.green;
+    if (state === "present") return C.orange;
+    return C.muted;
+  }
+
+  function getKeyColor(ch) {
+    const s = letterStates[ch];
+    if (s === "correct") return C.green;
+    if (s === "present") return C.orange;
+    if (s === "absent") return "#9ca3af";
+    return C.bgDeep;
+  }
+
+  const pressKey = (key) => {
+    if (gameOver) return;
+    if (key === "⌫") {
+      setCurrent(c => c.slice(0, -1));
+    } else if (key === "ENTER") {
+      if (current.length < wordLength) {
+        setShake(true);
+        setTimeout(() => setShake(false), 500);
+        return;
+      }
+      const newGuesses = [...guesses, current];
+      setGuesses(newGuesses);
+      setRevealed(r => [...r, newGuesses.length - 1]);
+      setCurrent("");
+      if (current === target) {
+        setTimeout(() => { setWon(true); setGameOver(true); notify("🎉 ¡Ganaste!", `Adivinaste "${target}" en ${newGuesses.length} intentos`, "🎉"); }, 400);
+      } else if (newGuesses.length >= maxGuesses) {
+        setTimeout(() => { setGameOver(true); notify("😢 Fin del juego", `La palabra era "${target}"`, "😢"); }, 400);
+      }
+    } else {
+      if (current.length < wordLength) setCurrent(c => c + key);
+    }
+  };
+
+  // Render grid
+  const rows = [];
+  for (let i = 0; i < maxGuesses; i++) {
+    let word = i < guesses.length ? guesses[i] : i === guesses.length ? current : "";
+    let isActive = i === guesses.length && !gameOver;
+    let isRevealed = i < guesses.length;
+    rows.push({ word, isActive, isRevealed, idx: i });
+  }
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14, alignItems:"center" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:10, width:"100%" }}>
+        <button style={{ ...S.btn(C.muted,C.muted,true), padding:"8px 12px" }} onClick={onBack}><ArrowLeft size={14} strokeWidth={2}/> Volver</button>
+        <div style={{ flex:1, textAlign:"center" }}>
+          <div style={{ fontWeight:"bold", fontSize:18 }}>🟣 Adivina la Palabra</div>
+          <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>Palabra de {wordLength} letras · {maxGuesses} intentos</div>
+        </div>
+      </div>
+
+      {/* Grid */}
+      <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+        {rows.map((row, ri) => (
+          <div key={ri} style={{ display:"flex", gap:6, transform: row.isActive && shake ? "translateX(-6px)" : "none", transition:"transform 0.1s" }}>
+            {Array(wordLength).fill(0).map((_,ci) => {
+              const ch = row.word[ci] || "";
+              const state = row.isRevealed ? getLetterState(row.word, target, ci) : null;
+              const bg = getTileColor(state, row.isRevealed);
+              const isFilled = !!ch;
+              return (
+                <div key={ci} style={{ width:54, height:54, borderRadius:10, background: row.isRevealed ? bg : C.card, border: `2px solid ${row.isRevealed ? bg : isFilled ? C.accent : C.border}`, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:"bold", fontSize:22, color: row.isRevealed ? "white" : C.text, transition:"background 0.3s", boxShadow: isFilled && !row.isRevealed ? `0 0 0 2px ${C.accentSoft}` : "none" }}>
+                  {ch}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      {/* Result banner */}
+      {gameOver && (
+        <div style={{ ...S.card(won ? C.green+"60" : C.pink+"60"), padding:"14px 20px", background: won ? C.greenSoft : C.pinkSoft, textAlign:"center", width:"100%" }}>
+          <div style={{ fontWeight:"bold", fontSize:16 }}>{won ? "🎉 ¡Genial!" : "😢 ¡Casi!"}</div>
+          <div style={{ fontSize:13, color:C.muted, marginTop:4 }}>{won ? `Adivinaste en ${guesses.length} intento${guesses.length>1?"s":""}` : `La palabra era `}<strong>{!won && target}</strong></div>
+          <button style={{ ...S.btn(won ? C.green : C.accent), marginTop:10 }} onClick={()=>{ setGuesses([]); setCurrent(""); setGameOver(false); setWon(false); setRevealed([]); onBack(); }}>
+            Jugar otra vez
+          </button>
+        </div>
+      )}
+
+      {/* Keyboard */}
+      <div style={{ display:"flex", flexDirection:"column", gap:6, width:"100%" }}>
+        {KEYBOARD_ROWS.map((row, ri) => (
+          <div key={ri} style={{ display:"flex", gap:5, justifyContent:"center" }}>
+            {row.map(key => (
+              <button key={key} onClick={() => pressKey(key)} style={{ height:44, minWidth: key.length > 1 ? (key==="ENTER"?52:44) : 32, flex: key.length===1 ? 1 : undefined, maxWidth: key.length===1 ? 40 : undefined, borderRadius:8, background: key==="ENTER" ? C.accent : key==="⌫" ? C.pink : getKeyColor(key), color: letterStates[key] || key==="ENTER" || key==="⌫" ? "white" : C.text, border:"none", fontWeight:"bold", fontSize: key.length>1 ? 11 : 14, cursor:"pointer", fontFamily:"inherit", boxShadow:`0 2px 4px ${C.shadow}`, transition:"background 0.2s" }}>
+                {key}
+              </button>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      <div style={{ fontSize:11, color:C.muted, textAlign:"center" }}>
+        🟢 Letra correcta · 🟠 Letra en otra posición · ⬜ No está
+      </div>
+    </div>
+  );
+}
+
 // ─── JUEGOS ───────────────────────────────────────────────────────────────────
 const GAMES_LIST=[
-  { id:"parcheesi", name:"Parchís",       Icon:Dice5,    players:"2–4", online:2, color:C.accent, colorSoft:C.accentSoft, available:true  },
-  { id:"trivia",    name:"Trivia Equipo", Icon:Smile,    players:"2–6", online:3, color:C.orange, colorSoft:C.orangeSoft, available:false },
-  { id:"rummy",     name:"Rummikub",      Icon:Star,     players:"2–4", online:1, color:C.pink,   colorSoft:C.pinkSoft,   available:false },
-  { id:"domino",    name:"Dominó",        Icon:Gamepad2, players:"2–4", online:0, color:C.teal,   colorSoft:C.tealSoft,   available:false },
+  { id:"parcheesi", name:"Parchís",            Icon:Dice5,    players:"1–4", online:2, color:C.accent, colorSoft:C.accentSoft, available:true  },
+  { id:"wordle",    name:"Adivina la Palabra",  Icon:BookOpen, players:"1",   online:0, color:C.teal,   colorSoft:C.tealSoft,   available:true  },
+  { id:"trivia",    name:"Trivia Equipo",        Icon:Smile,    players:"2–6", online:3, color:C.orange, colorSoft:C.orangeSoft, available:false },
+  { id:"rummy",     name:"Rummikub",             Icon:Star,     players:"2–4", online:1, color:C.pink,   colorSoft:C.pinkSoft,   available:false },
+  { id:"domino",    name:"Dominó",               Icon:Gamepad2, players:"2–4", online:0, color:C.blue,   colorSoft:C.blueSoft,   available:false },
 ];
 
 function JuegosTab({ notify }) {
   const [active,setActive]=useState(null);
   if(active==="parcheesi") return <ParcheesiGame onBack={()=>setActive(null)} notify={notify}/>;
+  if(active==="wordle")    return <WordleGame    onBack={()=>setActive(null)} notify={notify}/>;
   return (
     <div style={{ display:"flex",flexDirection:"column",gap:12 }}>
       <div>
